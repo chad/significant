@@ -85,6 +85,7 @@ h1 .p{color:var(--teal)}
 .dailynote b{color:var(--teal2);font-style:normal}
 .badge.cross{color:var(--gold);border-color:#7a5c3a}
 .badge.velo{color:#c792ea;border-color:#5a4a6a}
+.badge.diffuse{color:#8299ad;border-color:#3d5165}
 
 /* ---------- sections ---------- */
 .sect{margin:44px 0 0}
@@ -237,6 +238,8 @@ footer a{color:var(--dim)}
     <h4>3. Bonferroni correction — the honest part</h4>
     <p>Every cycle tests thousands of terms across all topics. Testing many hypotheses and reporting the best one is how junk science — and every trending-topics algorithm — works. So the gate is corrected for <em>every term we looked at</em>:</p>
     <div class="formula">pass  ⇔  p &lt; α / m,   α = 0.01,   m = all terms tested this cycle</div>
+    <h4>3¼. Plumbing filters</h4>
+    <p>Link fragments are stripped before tokenizing (a URL is not a word), and a burst whose posts ≥70% link to the <em>same domain</em> is rejected as <strong>aggregator echo</strong> — forty bots mirroring Hacker News is one source, not a discussion. Each burst also gets a deterministic <strong>story-coherence</strong> score: the fraction of its posts sharing a second term. A real story travels with companions; an umbrella word ("Apple" over unrelated gadget posts) doesn't. Below 50%, the event is labeled <em>diffuse</em> and its headline is required to say "mentions are elevated" rather than pretending the posts tell one story.</p>
     <h4>3½. Velocity anomalies</h4>
     <p>Separately from term bursts, each topic's <em>posting rate</em> is tested: posts in the last hour vs. a Poisson expectation from that feed's own same-UTC-hour history (diurnal-corrected, ≥48 h of history required). These tests count toward <code>m</code> and face the same corrected gate — they catch "something is happening" before we know what.</p>
     <h4>4. Structural gates</h4>
@@ -359,10 +362,10 @@ function card(ev, gone){
   const chips = ev.cluster.map(c=>`<span class="chip">${esc(c.display||c.term)} <span class="cp">p=${fmtP(c.p)}</span></span>`).join("");
   const expect = (L.p0*L.n).toFixed(1);
   const isVelo = ev.type === "velocity";
-  const extraBadges = (ev.crossTopics ? `<span class="badge cross">✦ cross-domain ×${ev.crossTopics.length}</span> ` : "") + (isVelo ? `<span class="badge velo">⚡ velocity</span> ` : "");
+  const extraBadges = (ev.crossTopics ? `<span class="badge cross">✦ cross-domain ×${ev.crossTopics.length}</span> ` : "") + (isVelo ? `<span class="badge velo">⚡ velocity</span> ` : "") + (ev.diffuse ? `<span class="badge diffuse">◌ diffuse</span> ` : "");
   const statsHtml = isVelo
     ? `<b>${L.x}</b> posts in the last hour · expected <b>${L.lambda}</b> (diurnal-corrected) · <b>${L.ratio}×</b> normal rate<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · Poisson test`
-    : `in <b>${L.x}</b> of the last <b>${L.n}</b> posts · baseline expects <b>${expect}</b> (${L.xb}/${L.N} historical)<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · <b>${L.authors}</b> distinct authors`;
+    : `in <b>${L.x}</b> of the last <b>${L.n}</b> posts · baseline expects <b>${expect}</b> (${L.xb}/${L.N} historical)<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · <b>${L.authors}</b> distinct authors` + (ev.coherence!=null ? `<br>story coherence: <b>${Math.round((ev.coherence||0)*100)}%</b>${ev.cohTerm?` (shared thread: “${esc(ev.cohTerm)}”)`:""}${ev.diffuse?" — posts span multiple stories; headline kept honest":""}` : "");
   const receipts = ev.receipts.map(r=>`
     <div class="rct">
       <div class="rcthead"><span>${SVC[r.service]||"·"}</span><span class="who">${esc(r.name||r.handle)}</span><span class="svcb">${r.service}</span><span>${ago(r.at)}</span>${r.url?`&nbsp;<a class="plink" href="${esc(r.url)}" target="_blank" rel="noopener">open ↗</a>`:""}</div>
