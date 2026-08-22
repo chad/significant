@@ -329,18 +329,24 @@ function markText(text, terms){
 
 function renderEvents(){
   const active = S.events.filter(e=>e.active);
-  const recent = S.events.filter(e=>!e.active);
-  $("evnote").textContent = active.length ? `${active.length} event${active.length>1?"s":""} above threshold` : "";
+  const stories = active.filter(e=>!e.diffuse);
+  const diffuse = active.filter(e=>e.diffuse);
+  const recent = S.events.filter(e=>!e.active && !e.diffuse);
+  $("evnote").textContent = stories.length ? `${stories.length} stor${stories.length>1?"ies":"y"} above threshold` : "";
   let html = "";
-  if(!active.length){
+  if(!stories.length){
     html += `<div class="empty">
       <h2>Nothing significant is happening right now.</h2>
-      <p>That's not a bug. ${fmtN(S.stats.postsToday)} posts crossed the wire today and none of the current discussion clears a Bonferroni-corrected significance gate. Whatever your other feeds are showing you is, statistically speaking, noise.</p>
+      <p>That's not a bug. ${fmtN(S.stats.postsToday)} posts crossed the wire today and no coherent story clears a Bonferroni-corrected significance gate. Whatever your other feeds are showing you is, statistically speaking, noise.</p>
       <div class="nullclock"><div class="t" id="nullclock">—</div><div class="l">the null hypothesis has held for</div></div>
       <div class="fine">gate: p &lt; ${fmtP(S.stats.alpha)} · check back — the world occasionally happens</div>
     </div>`;
   }
-  for(const ev of active) html += card(ev,false);
+  for(const ev of stories) html += card(ev,false);
+  if(diffuse.length){
+    html += `<div class="secthead" style="margin-top:28px"><span>Statistically elevated · editorially empty</span><span class="note">real anomalies, but the posts don't tell one story</span></div>`;
+    html += diffuse.map(ev=>`<div class="pitem"><span class="fake" style="color:var(--mut);border-color:var(--line2)">◌ DIFFUSE</span><b>${esc(ev.lead.display||ev.lead.term)}</b><span>#${title(ev.topic)}</span><span>${ev.lead.x}/${ev.lead.n} vs ${(ev.lead.p0*ev.lead.n).toFixed(1)}</span><span>p=${fmtP(ev.lead.p)}</span><span>coherence ${Math.round((ev.coherence||0)*100)}%${ev.cohTerm?` · largest thread: “${esc(ev.cohTerm)}”`:""}</span></div>`).join("");
+  }
   if(recent.length){
     html += `<div class="secthead" style="margin-top:28px"><span>Recently significant</span><span class="note">passed the gate in the last 24h, since fallen below</span></div>`;
     for(const ev of recent.slice(0,6)) html += card(ev,true);
