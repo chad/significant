@@ -1,0 +1,10 @@
+{
+  "name": "significant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Significant — the news feed with a p-value. Every story must reject the null hypothesis (Bonferroni-corrected) against its own baseline on the live open social web.",
+  "scripts": { "start": "node server.mjs", "dev": "node server.mjs" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "@anthropic-ai/sdk": "^0.110.0" }
+}

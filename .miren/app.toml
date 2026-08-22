@@ -1,0 +1,52 @@
+# Significant — the news feed with a p-value.
+#
+#   miren deploy --analyze -C freeq
+#   miren deploy -C freeq -s ANTHROPIC_API_KEY
+#   miren route set significant.chadfowler.com significant -C freeq
+#
+# Plain Node ≥18, no build step. The engine polls Surf topic feeds and keeps
+# rolling baselines in $DATA_DIR — a managed disk so significance history
+# survives redeploys (baselines deepen over days; losing them would reset
+# every topic to "calibrating").
+
+name = "significant"
+
+[services.web]
+command = "node server.mjs"
+port = 3000
+
+# Exactly one instance, always: the poller + SSE state is in-process, and a
+# second instance would double the API polling and disagree about baselines.
+# (A managed disk also requires fixed/1 — the disk lease is exclusive.)
+[services.web.concurrency]
+mode = "fixed"
+num_instances = 1
+shutdown_timeout = "30s"
+
+[[services.web.disks]]
+name = "significant-data"
+mount_path = "/data"
+size_gb = 1
+filesystem = "ext4"
+
+[[env]]
+key = "DATA_DIR"
+value = "/data"
+
+[[env]]
+key = "PORT"
+value = "3000"
+
+# Claude headlines (batched, cached). Set with: miren env set -a significant -s ANTHROPIC_API_KEY
+[[env]]
+key = "ANTHROPIC_API_KEY"
+required = false
+sensitive = true
+description = "Claude writes neutral headlines for events that pass the gate; templates otherwise"
+
+# Optional Surf key: higher rate tier + cross-network corroboration
+[[env]]
+key = "SURF_API_KEY"
+required = false
+sensitive = true
+description = "Surf API token (read:search) for corroboration; keyless public reads otherwise"

@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Significant — the news feed with a p-value</title>
+<meta name="description" content="A news feed where every story must reject the null hypothesis. Live Mastodon + Bluesky + RSS, Bonferroni-corrected. Almost nothing passes.">
+<style>
+:root{
+  --bg:#0a1016; --panel:#101822; --panel2:#15202c; --line:#1f2d3b; --line2:#2a3b4c;
+  --ink:#dfe7ee; --mut:#8299ad; --dim:#5a7084; --faint:#3d5165;
+  --teal:#2fc2ad; --teal2:#5bcec4; --gold:#f5b946; --red:#d95555; --green:#3fb27f;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+a{color:var(--teal2);text-decoration:none}
+a:hover{text-decoration:underline}
+.mono{font-family:var(--mono)}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+
+/* ---------- header ---------- */
+header{padding:44px 0 10px;text-align:center}
+h1{font-family:var(--mono);font-size:34px;margin:0;letter-spacing:-1px;font-weight:600}
+h1 .p{color:var(--teal)}
+.tagline{color:var(--mut);margin:8px 0 0;font-size:16px}
+.tagline b{color:var(--ink);font-weight:600}
+.modebar{margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.modebar .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 4px 0 14px;vertical-align:1px}
+.on{background:var(--green)} .off{background:var(--faint)}
+
+/* ---------- counters ---------- */
+.counters{display:flex;justify-content:center;gap:14px;margin:26px 0 8px;flex-wrap:wrap}
+.counter{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:150px;text-align:center}
+.counter .num{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--ink)}
+.counter .num.hot{color:var(--teal)}
+.counter .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:3px}
+.gateline{text-align:center;font-family:var(--mono);font-size:12px;color:var(--mut);margin:10px 0 0}
+.gateline b{color:var(--gold);font-weight:600}
+
+/* ---------- ticker ---------- */
+.tickerbox{margin:30px 0 6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tickerhead{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--teal);margin-right:8px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+#ticker{height:196px;overflow:hidden;padding:6px 14px;font-family:var(--mono);font-size:11.5px}
+.trow{display:flex;gap:10px;padding:3px 0;color:var(--dim);white-space:nowrap;overflow:hidden;animation:tin .4s ease-out}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.trow .svc{width:10px;flex:none;text-align:center}
+.trow .top{color:var(--faint);flex:none;width:104px;overflow:hidden;text-overflow:ellipsis}
+.trow .txt{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
+.trow .verdict{flex:none;color:var(--faint)}
+.trow .verdict.rej{color:#6b4a4a}
+.trow .verdict.pass{color:var(--teal);font-weight:700}
+.trow.passrow{color:var(--ink)} .trow.passrow .txt{color:var(--mut)}
+
+/* ---------- null-streak clock ---------- */
+.nullclock{font-family:var(--mono);margin-top:20px}
+.nullclock .t{font-size:34px;font-weight:700;color:var(--teal);letter-spacing:1px}
+.nullclock .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-top:4px}
+
+/* ---------- alpha slider ---------- */
+.alphabox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px}
+.alphabox .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.alphabox input[type=range]{flex:1;min-width:180px;accent-color:var(--gold)}
+.alphabox .aval{font-family:var(--mono);font-size:13px;color:var(--gold);min-width:170px;font-weight:600}
+.alphabox .amode{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+.promoted{margin-top:14px}
+.pitem{border:1px dashed #7a5c3a;border-radius:8px;padding:8px 14px;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--mut);display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.pitem .fake{color:var(--gold);font-weight:700;font-size:10px;letter-spacing:1px;border:1px solid #7a5c3a;border-radius:4px;padding:1px 6px}
+.promoted .none{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:10px}
+
+/* ---------- seismograph ---------- */
+.seismo{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+.srow{display:flex;align-items:center;gap:12px;padding:2px 0}
+.srow .sname{font-family:var(--mono);font-size:10.5px;color:var(--dim);width:150px;flex:none;text-align:right}
+.srow svg{display:block}
+
+/* ---------- sound toggle / nav ---------- */
+.navrow{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.navrow a,.navrow button{color:var(--teal2);background:none;border:none;font-family:var(--mono);font-size:11.5px;cursor:pointer;padding:0;text-decoration:none}
+.navrow .sep{color:var(--faint);margin:0 8px}
+.dailynote{font-family:var(--mono);font-size:12.5px;color:var(--mut);text-align:center;margin:18px auto 0;max-width:620px;font-style:italic}
+.dailynote b{color:var(--teal2);font-style:normal}
+.badge.cross{color:var(--gold);border-color:#7a5c3a}
+.badge.velo{color:#c792ea;border-color:#5a4a6a}
+
+/* ---------- sections ---------- */
+.sect{margin:44px 0 0}
+.secthead{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:baseline}
+.secthead .note{text-transform:none;letter-spacing:0;font-size:11px;color:var(--faint)}
+
+/* ---------- empty hero ---------- */
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;text-align:center;padding:56px 30px}
+.empty h2{font-family:var(--mono);font-size:22px;margin:0;color:var(--ink);font-weight:600}
+.empty p{color:var(--mut);margin:12px auto 0;max-width:520px}
+.empty .fine{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:18px}
+
+/* ---------- event cards ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:16px;position:relative}
+.card.inactive{opacity:.55}
+.card .topicrow{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:8px}
+.badge{background:var(--panel2);border:1px solid var(--line2);border-radius:99px;padding:2px 10px;color:var(--teal2);text-transform:uppercase;letter-spacing:1px}
+.badge.gone{color:var(--dim)}
+.card h3{margin:0;font-size:19px;line-height:1.35;font-weight:650}
+.card .dek{color:var(--mut);margin:6px 0 0;font-size:14px}
+.termchips{margin:12px 0 0;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;background:var(--panel2);border:1px solid var(--line2);border-radius:6px;padding:2px 8px;color:var(--teal2)}
+.chip .cp{color:var(--dim)}
+.statrow{display:flex;gap:20px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.stats{font-family:var(--mono);font-size:12px;color:var(--mut);line-height:1.9}
+.stats b{color:var(--ink);font-weight:600}
+.stats .sig{color:var(--gold);font-weight:700}
+.spark{flex:none}
+.spark svg{display:block}
+.sparklbl{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-align:right;margin-top:2px}
+.cardfoot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-family:var(--mono);font-size:11.5px}
+.cardfoot .meta{color:var(--faint)}
+.btn{background:none;border:1px solid var(--line2);color:var(--mut);border-radius:6px;padding:4px 12px;font-family:var(--mono);font-size:11.5px;cursor:pointer}
+.btn:hover{color:var(--ink);border-color:var(--dim)}
+.corro{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--teal2)}
+
+/* receipts */
+.receipts{display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
+.receipts.open{display:block}
+.rct{padding:9px 0;border-bottom:1px solid var(--line)}
+.rct:last-child{border-bottom:none}
+.rcthead{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:3px;display:flex;gap:8px;align-items:baseline}
+.rcthead .who{color:var(--mut)}
+.rcthead .svcb{border:1px solid var(--line2);border-radius:4px;padding:0 5px;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px}
+.rct .body{font-size:13.5px;color:var(--ink)}
+.rct .body mark{background:rgba(47,194,173,.18);color:var(--teal2);border-radius:3px;padding:0 2px}
+.rct a.plink{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+/* ---------- noise floor ---------- */
+.noise .card-n{background:transparent;border:1px dashed var(--line);border-radius:10px;padding:10px 16px;margin-bottom:8px;display:flex;gap:14px;align-items:baseline;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.noise .term{color:var(--mut);font-weight:600;min-width:140px}
+.noise .why{color:#8a6a5a}
+.noise .ptag{color:var(--faint)}
+.noisefoot{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;text-align:center}
+
+/* ---------- topics table ---------- */
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.tp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:11px}
+.tp .tname{color:var(--mut);font-weight:600}
+.tp .tstat{color:var(--faint);margin-top:2px}
+.tp.calib .tstat{color:var(--gold)}
+
+/* ---------- methodology ---------- */
+.mbtn{background:none;border:none;color:var(--teal2);font-family:var(--mono);font-size:12px;cursor:pointer;text-decoration:underline;padding:0}
+#method{display:none;position:fixed;inset:0;background:rgba(5,10,15,.8);z-index:50;overflow-y:auto}
+#method.open{display:block}
+.mpanel{max-width:680px;margin:60px auto;background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:34px 38px}
+.mpanel h2{font-family:var(--mono);margin-top:0}
+.mpanel h4{color:var(--teal2);font-family:var(--mono);margin:22px 0 6px}
+.mpanel p,.mpanel li{color:var(--mut);font-size:14px}
+.mpanel code{font-family:var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:12.5px;color:var(--teal2)}
+.mpanel .formula{font-family:var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px 18px;color:var(--ink);font-size:13px;margin:10px 0;overflow-x:auto}
+
+footer{margin:64px 0 40px;text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--faint);line-height:2}
+footer a{color:var(--dim)}
+.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px rgba(47,194,173,.7)}100%{box-shadow:none}}
+@media(max-width:640px){ .counters{gap:8px} .counter{min-width:100px;padding:10px 14px} .counter .num{font-size:20px} h1{font-size:26px} }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <h1>Significant<span class="p">.</span></h1>
+  <p class="tagline">The news feed with a <b>p-value</b>. Every story must reject the null hypothesis.<br>Live Mastodon + Bluesky + RSS · Bonferroni-corrected · <button class="mbtn" onclick="toggleMethod()">methodology</button></p>
+  <div class="modebar" id="modebar">connecting…</div>
+  <div class="navrow"><a href="/ledger">the ledger</a><span class="sep">·</span><a href="/feed.xml">rss</a><span class="sep">·</span><button id="sndbtn" onclick="toggleSound()">🔇 sound off</button></div>
+  <div class="dailynote" id="dailynote"></div>
+</header>
+
+<div class="wrap">
+  <div class="counters">
+    <div class="counter"><div class="num mono" id="c-posts">—</div><div class="lbl">posts analyzed</div></div>
+    <div class="counter"><div class="num mono" id="c-terms">—</div><div class="lbl">hypotheses tested</div></div>
+    <div class="counter"><div class="num mono hot" id="c-passed">—</div><div class="lbl">passed the gate</div></div>
+    <div class="counter"><div class="num mono" id="c-rate">—</div><div class="lbl">survival rate</div></div>
+  </div>
+  <div class="gateline" id="gateline"></div>
+
+  <div class="tickerbox">
+    <div class="tickerhead"><span><span class="pulse"></span>live — the wire, judged in real time<span id="wirerate"></span></span><span id="tickcount"></span></div>
+    <div id="ticker"></div>
+  </div>
+
+  <div class="sect">
+    <div class="secthead"><span>Significant right now</span><span class="note" id="evnote"></span></div>
+    <div id="events"></div>
+  </div>
+
+  <div class="sect">
+    <div class="secthead"><span>Choose your credulity</span><span class="note">what your other feeds would be showing you right now</span></div>
+    <div class="alphabox">
+      <div class="row">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--faint)">rigorous</span>
+        <input type="range" id="aslider" min="0" max="100" value="0">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--faint)">tabloid</span>
+        <span class="aval" id="aval"></span>
+      </div>
+      <div class="amode" id="amode"></div>
+      <div class="promoted" id="promoted"></div>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="secthead"><span>Seismograph</span><span class="note">max burst z-score per topic · last 24h</span></div>
+    <div class="seismo" id="seismo"></div>
+  </div>
+
+  <div class="sect noise">
+    <div class="secthead"><span>The noise floor</span><span class="note">closest calls that still failed — this is most of the news</span></div>
+    <div id="noise"></div>
+    <div class="noisefoot" id="noisefoot"></div>
+  </div>
+
+  <div class="sect">
+    <div class="secthead"><span>Instruments</span><span class="note">one gate, fifteen live topic feeds</span></div>
+    <div class="topics" id="topics"></div>
+  </div>
+</div>
+
+<div id="method" onclick="if(event.target===this)toggleMethod()">
+  <div class="mpanel">
+    <h2>Methodology</h2>
+    <p>Significant watches 15 public topic feeds on the open social web (Mastodon + Bluesky + RSS, via the <a href="https://developers.surf.social" target="_blank">Surf API</a>) and admits a story to the feed only when the discussion burst is statistically significant against that feed's own history.</p>
+    <h4>1. Exposure is posts, not time</h4>
+    <p>Feeds run at wildly different speeds (politics ≈ 4 posts/day, news ≈ 3,400/day). So each term's burst is measured as a <em>proportion of posts</em>: it appeared in <code>x</code> of the last <code>n</code> posts, against a baseline proportion <code>p₀</code> estimated from everything older (Laplace-smoothed). Both feeds face the same gate.</p>
+    <h4>2. Exact binomial test</h4>
+    <div class="formula">p = P(X ≥ x)  where  X ~ Binomial(n, p₀)<br>z = (x − n·p₀ − ½) / √(n·p₀(1−p₀))</div>
+    <p>Computed exactly (log-gamma), not approximated, for every window size we actually see.</p>
+    <h4>3. Bonferroni correction — the honest part</h4>
+    <p>Every cycle tests thousands of terms across all topics. Testing many hypotheses and reporting the best one is how junk science — and every trending-topics algorithm — works. So the gate is corrected for <em>every term we looked at</em>:</p>
+    <div class="formula">pass  ⇔  p &lt; α / m,   α = 0.01,   m = all terms tested this cycle</div>
+    <h4>3½. Velocity anomalies</h4>
+    <p>Separately from term bursts, each topic's <em>posting rate</em> is tested: posts in the last hour vs. a Poisson expectation from that feed's own same-UTC-hour history (diurnal-corrected, ≥48 h of history required). These tests count toward <code>m</code> and face the same corrected gate — they catch "something is happening" before we know what.</p>
+    <h4>4. Structural gates</h4>
+    <p>A term must also appear in ≥ 4 posts from ≥ 3 distinct authors. One loud account is not news. Topics without ≥ 30 baseline posts spanning ≥ 3 h are marked <em>calibrating</em> and not tested at all.</p>
+    <h4>5. What the AI does and doesn't do</h4>
+    <p>Claude writes the one-line neutral headline for events <em>after</em> they pass the gate (one batched call, cached forever). The statistics contain no AI. If no key is set, deterministic template headlines are used — the feed is identical.</p>
+    <h4>Honest limitations</h4>
+    <ul>
+      <li>Baselines deepen over days; a freshly-booted instance is under-calibrated and says so per topic.</li>
+      <li>Presence/absence per post ignores term burstiness within authors' posting habits — the author gate is a crude proxy.</li>
+      <li>Bonferroni is conservative by design. We will miss real events. We prefer that to lying to you.</li>
+    </ul>
+    <p style="text-align:right"><button class="btn" onclick="toggleMethod()">close</button></p>
+  </div>
+</div>
+
+<footer class="wrap">
+  Significant — an experiment in statistically honest news.<br>
+  Data: live public topic feeds from the <a href="https://developers.surf.social" target="_blank">Surf API</a> (Mastodon + Bluesky + RSS) · Headlines: Claude · No engagement algorithm was consulted.<br>
+  <span id="foot-mode"></span>
+</footer>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const SVC = { mastodon:"🐘", bluesky:"🦋", rss:"📰", podcast:"🎙" };
+let S = null;
+let seenEvents = new Set(JSON.parse(sessionStorage.getItem("seenEv")||"[]"));
+let tickQueue = [], tickSeen = new Set();
+
+function fmtP(p){ if(p==null) return "—"; if(p===0) return "<1e−300"; if(p<1e-4) return p.toExponential(1).replace("e-","e−"); return p.toFixed(3).replace(/^0\./,"."); }
+function fmtN(v){ return v==null ? "—" : v.toLocaleString("en-US"); }
+function esc(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function ago(t){ const s=(Date.now()-t)/1e3; if(s<90) return Math.round(s)+"s ago"; if(s<5400) return Math.round(s/60)+"m ago"; if(s<172800) return (s/3600).toFixed(1).replace(/\.0$/,"")+"h ago"; return Math.round(s/86400)+"d ago"; }
+function title(t){ return t.replace(/-/g," "); }
+
+/* ---------- render ---------- */
+function render(){
+  if(!S) return;
+  const st = S.stats;
+  $("c-posts").textContent = fmtN(st.postsAnalyzed);
+  $("c-terms").textContent = fmtN(st.termsTested);
+  $("c-passed").textContent = fmtN(st.passedEver);
+  $("c-rate").textContent = st.termsTested ? (100*st.passedEver/st.termsTested).toPrecision(2)+"%" : "—";
+  $("gateline").innerHTML = st.m
+    ? `current gate: <b>p &lt; ${fmtP(st.alpha)}</b> &nbsp;(α = 0.01 ÷ ${fmtN(st.m)} hypotheses in the last window) · today: ${fmtN(st.postsToday)} posts, ${fmtN(st.passedToday)} passed`
+    : "";
+  $("modebar").innerHTML =
+    `<span class="dot on"></span>surf data: ${S.live.surf ? "keyed (live+search)" : "live public feeds"}` +
+    `<span class="dot ${S.live.ai?"on":"off"}"></span>headlines: ${S.live.ai ? "claude" : "templates"}` +
+    `<span class="dot on"></span>gate: bonferroni α=.01`;
+  $("foot-mode").textContent = `mode: ${S.live.surf?"keyed":"keyless"} · ${S.live.ai?"claude headlines":"template headlines"}`;
+  $("wirerate").textContent = st.postsToday > 100 ? ` · ~${fmtN(st.postsToday)} posts today across 15 feeds` : "";
+
+  $("dailynote").innerHTML = (S.lastNote && S.lastNote.note)
+    ? `<b>${S.lastNote.day}, statistically:</b> “${esc(S.lastNote.note)}”`
+    : "";
+
+  renderEvents();
+  renderNoise();
+  renderTopics();
+  renderAlpha();
+  renderSeismo();
+  tickClock();
+}
+
+function sparkSVG(buckets){
+  const W=180,H=36,max=Math.max(1,...buckets);
+  const bw=W/buckets.length;
+  let bars="";
+  buckets.forEach((v,i)=>{
+    const h=v?Math.max(2,(v/max)*(H-4)):1;
+    const hot=i>=buckets.length-6&&v>0;
+    bars+=`<rect x="${(i*bw).toFixed(1)}" y="${(H-h).toFixed(1)}" width="${Math.max(1,bw-1.2).toFixed(1)}" height="${h.toFixed(1)}" fill="${hot?"#2fc2ad":"#31465a"}"/>`;
+  });
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${bars}</svg>`;
+}
+
+function markText(text, terms){
+  let out = esc(text);
+  for(const t of terms.slice(0,4)){
+    const disp = esc(t.display||t.term);
+    try{ out = out.replace(new RegExp("("+disp.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"),"<mark>$1</mark>"); }catch(e){}
+  }
+  return out;
+}
+
+function renderEvents(){
+  const active = S.events.filter(e=>e.active);
+  const recent = S.events.filter(e=>!e.active);
+  $("evnote").textContent = active.length ? `${active.length} event${active.length>1?"s":""} above threshold` : "";
+  let html = "";
+  if(!active.length){
+    html += `<div class="empty">
+      <h2>Nothing significant is happening right now.</h2>
+      <p>That's not a bug. ${fmtN(S.stats.postsToday)} posts crossed the wire today and none of the current discussion clears a Bonferroni-corrected significance gate. Whatever your other feeds are showing you is, statistically speaking, noise.</p>
+      <div class="nullclock"><div class="t" id="nullclock">—</div><div class="l">the null hypothesis has held for</div></div>
+      <div class="fine">gate: p &lt; ${fmtP(S.stats.alpha)} · check back — the world occasionally happens</div>
+    </div>`;
+  }
+  for(const ev of active) html += card(ev,false);
+  if(recent.length){
+    html += `<div class="secthead" style="margin-top:28px"><span>Recently significant</span><span class="note">passed the gate in the last 24h, since fallen below</span></div>`;
+    for(const ev of recent.slice(0,6)) html += card(ev,true);
+  }
+  $("events").innerHTML = html;
+  // flash newborns
+  for(const ev of active){
+    if(!seenEvents.has(ev.id)){
+      seenEvents.add(ev.id);
+      const el = document.getElementById("e-"+ev.id);
+      if(el) el.classList.add("flash");
+    }
+  }
+  sessionStorage.setItem("seenEv", JSON.stringify([...seenEvents].slice(-200)));
+}
+
+function card(ev, gone){
+  const L = ev.lead;
+  const chips = ev.cluster.map(c=>`<span class="chip">${esc(c.display||c.term)} <span class="cp">p=${fmtP(c.p)}</span></span>`).join("");
+  const expect = (L.p0*L.n).toFixed(1);
+  const isVelo = ev.type === "velocity";
+  const extraBadges = (ev.crossTopics ? `<span class="badge cross">✦ cross-domain ×${ev.crossTopics.length}</span> ` : "") + (isVelo ? `<span class="badge velo">⚡ velocity</span> ` : "");
+  const statsHtml = isVelo
+    ? `<b>${L.x}</b> posts in the last hour · expected <b>${L.lambda}</b> (diurnal-corrected) · <b>${L.ratio}×</b> normal rate<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · Poisson test`
+    : `in <b>${L.x}</b> of the last <b>${L.n}</b> posts · baseline expects <b>${expect}</b> (${L.xb}/${L.N} historical)<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · <b>${L.authors}</b> distinct authors`;
+  const receipts = ev.receipts.map(r=>`
+    <div class="rct">
+      <div class="rcthead"><span>${SVC[r.service]||"·"}</span><span class="who">${esc(r.name||r.handle)}</span><span class="svcb">${r.service}</span><span>${ago(r.at)}</span>${r.url?`&nbsp;<a class="plink" href="${esc(r.url)}" target="_blank" rel="noopener">open ↗</a>`:""}</div>
+      <div class="body">${markText(r.text, ev.cluster)}</div>
+    </div>`).join("");
+  const corro = ev.corro ? `<div class="corro">↳ corroborated across the wider network: ${ev.corro.found} more posts found via search</div>` : "";
+  return `<div class="card ${gone?"inactive":""}" id="e-${ev.id}">
+    <div class="topicrow">
+      <span>${extraBadges}<span class="badge ${gone?"gone":""}">#${title(ev.topic)}</span></span>
+      <span>${gone?"fell below threshold · ":""}surfaced ${ago(ev.firstSeen)}</span>
+    </div>
+    <h3>${esc(ev.headline||L.display||L.term)}</h3>
+    ${ev.dek?`<p class="dek">${esc(ev.dek)}</p>`:""}
+    <div class="termchips">${chips}</div>
+    <div class="statrow">
+      <div class="stats">${statsHtml}</div>
+      <div class="spark">${sparkSVG(ev.spark)}<div class="sparklbl">${isVelo?"posts":"mentions"}/hr · last 48h</div></div>
+    </div>
+    ${corro}
+    <div class="cardfoot">
+      <span class="meta">event ${ev.id}</span>
+      <span>
+        <button class="btn" onclick="share('${ev.id}',this)">share ↗</button>
+        <button class="btn" onclick="this.closest('.card').querySelector('.receipts').classList.toggle('open')">receipts (${ev.receipts.length})</button>
+      </span>
+    </div>
+    <div class="receipts">${receipts}</div>
+  </div>`;
+}
+
+function share(id, btn){
+  const url = location.origin + "/e/" + id;
+  navigator.clipboard.writeText(url).then(()=>{ btn.textContent="copied!"; setTimeout(()=>btn.textContent="share ↗",1500); });
+}
+
+function renderNoise(){
+  if(!S.noise.length){
+    $("noise").innerHTML = `<div class="card-n"><span class="term">—</span><span>no near-misses in the current window</span></div>`;
+    $("noisefoot").textContent = "";
+    return;
+  }
+  $("noise").innerHTML = S.noise.slice(0,10).map(c=>`
+    <div class="card-n">
+      <span class="ptag">p=${fmtP(c.p)}</span>
+      <span class="term">${esc(c.display||c.term)}</span>
+      <span class="ptag">#${title(c.topic)} · ${c.x}/${c.n} vs ${(c.p0*c.n).toFixed(1)}</span>
+      <span class="why">✕ ${c.failed.join(" · ")}</span>
+    </div>`).join("");
+  $("noisefoot").textContent = `these would all be "trending" somewhere else`;
+}
+
+/* ---------- null-streak clock ---------- */
+function tickClock(){
+  const el = $("nullclock");
+  if(!el || !S) return;
+  const since = S.lastPassAt || S.launchedAt;
+  let s = Math.max(0,(Date.now()-since)/1e3);
+  const d=Math.floor(s/86400); s-=d*86400;
+  const h=Math.floor(s/3600), m=Math.floor(s%3600/60), sec=Math.floor(s%60);
+  el.textContent = (d?d+"d ":"")+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");
+}
+setInterval(tickClock, 1000);
+
+/* ---------- alpha slider ---------- */
+// slider maps 0..100 -> alpha from our corrected gate up to 0.05 (log scale)
+function sliderAlpha(v){
+  const lo = Math.max(S.stats.alpha, 1e-9), hi = 0.05;
+  return Math.exp(Math.log(lo) + (v/100)*(Math.log(hi)-Math.log(lo)));
+}
+function renderAlpha(){
+  if(!S || !S.stats.m) return;
+  const v = +$("aslider").value;
+  const a = sliderAlpha(v);
+  $("aval").textContent = "α = " + fmtP(a);
+  const promoted = S.noise.filter(c => c.structuralPass && c.p < a);
+  $("amode").innerHTML = v === 0
+    ? `this is our gate: α = 0.01 ÷ ${fmtN(S.stats.m)} hypotheses tested. Drag right to lower your standards.`
+    : `at α = ${fmtP(a)} <b style="color:var(--gold)">${promoted.length} noise item${promoted.length===1?"":"s"}</b> would be "news" — this is roughly how trending algorithms work (they don't correct for how many things they looked at).`;
+  $("promoted").innerHTML = promoted.length
+    ? promoted.slice(0,12).map(c=>`<div class="pitem"><span class="fake">WOULD BE NEWS</span><b>${esc(c.display||c.term)}</b><span>#${title(c.topic)}</span><span>${c.x}/${c.n} vs ${(c.p0*c.n).toFixed(1)}</span><span>p=${fmtP(c.p)}</span></div>`).join("")
+    : (v===0 ? "" : `<div class="none">even the tabloid setting finds nothing right now — genuinely quiet</div>`);
+}
+
+/* ---------- seismograph ---------- */
+function renderSeismo(){
+  if(!S || !S.seismo) return;
+  const names = Object.keys(S.seismo).sort();
+  if(!names.length){ $("seismo").innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--faint)">collecting samples… (one every 10 minutes)</div>`; return; }
+  const now = Date.now(), W = 560, H = 22;
+  $("seismo").innerHTML = names.map(n=>{
+    const pts = S.seismo[n];
+    const maxZ = Math.max(4, ...pts.map(p=>p[1]));
+    const path = pts.map((p,i)=>{
+      const x = W - ((now-p[0])/(24*3600e3))*W;
+      const y = H-2 - (Math.max(0,p[1])/maxZ)*(H-6);
+      return (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1);
+    }).join(" ");
+    const hot = pts.length && pts[pts.length-1][1] > 3;
+    return `<div class="srow"><span class="sname">#${title(n)}</span><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="flex:1"><path d="${path}" fill="none" stroke="${hot?"#2fc2ad":"#31465a"}" stroke-width="1.3"/></svg></div>`;
+  }).join("");
+}
+
+/* ---------- geiger counter (default OFF, persisted) ---------- */
+let sound = localStorage.getItem("sigSound") === "on";
+let actx = null;
+function toggleSound(){
+  sound = !sound;
+  localStorage.setItem("sigSound", sound ? "on" : "off");
+  if(sound && !actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  paintSoundBtn();
+}
+function paintSoundBtn(){ $("sndbtn").textContent = sound ? "🔊 geiger on" : "🔇 sound off"; }
+function tick_sound(pass){
+  if(!sound || !actx) return;
+  try{
+    const t = actx.currentTime;
+    if(pass){ // chime: something passed the gate
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = 880; o.type = "sine";
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.0001, t+0.9);
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+0.9);
+      const o2 = actx.createOscillator(), g2 = actx.createGain();
+      o2.frequency.value = 1320; o2.type = "sine";
+      g2.gain.setValueAtTime(0.08, t+0.12); g2.gain.exponentialRampToValueAtTime(0.0001, t+1);
+      o2.connect(g2); g2.connect(actx.destination); o2.start(t+0.12); o2.stop(t+1);
+    } else { // geiger click: another hypothesis rejected
+      const b = actx.createBuffer(1, 220, actx.sampleRate);
+      const data = b.getChannelData(0);
+      for(let i=0;i<220;i++) data[i] = (Math.random()*2-1)*Math.exp(-i/25)*0.25;
+      const src = actx.createBufferSource(); src.buffer = b;
+      src.connect(actx.destination); src.start();
+    }
+  }catch(e){}
+}
+
+function renderTopics(){
+  $("topics").innerHTML = S.stats.topics.map(t=>{
+    const calib = !t.testable;
+    const stat = t.error ? "error: "+t.error
+      : calib ? `calibrating · ${t.baselineN||0}/30 baseline posts`
+      : `armed · ${t.currentN} now / ${t.baselineN} baseline`;
+    return `<div class="tp ${calib?"calib":""}"><div class="tname">#${title(t.name)}</div><div class="tstat">${stat}</div></div>`;
+  }).join("");
+}
+
+/* ---------- ticker drip ---------- */
+function tickKey(t){ return t.at+"|"+t.handle+"|"+t.text.slice(0,40); }
+let tickerPrimed = false;
+function enqueueTicker(items){
+  for(const t of items){
+    const k = tickKey(t);
+    if(!tickSeen.has(k)){ tickSeen.add(k); tickQueue.push(t); }
+  }
+  if(!tickerPrimed && tickQueue.length){
+    tickerPrimed = true;
+    // first paint: fill the ticker instantly, keep the rest for the drip
+    const prime = tickQueue.splice(0, Math.min(10, tickQueue.length));
+    for(const t of prime) paintTick(t);
+  }
+  if(tickSeen.size>800) tickSeen = new Set([...tickSeen].slice(-400));
+  if(tickQueue.length>90) tickQueue = tickQueue.slice(-90);
+}
+function paintTick(t){
+  const box = $("ticker");
+  const verdict = t.term
+    ? (t.pass ? `<span class="verdict pass">★ ${esc(t.term)} p=${fmtP(t.p)} SIGNIFICANT</span>`
+              : `<span class="verdict rej">${esc(t.term)} z=${t.z??"·"} p=${fmtP(t.p)} — noise</span>`)
+    : `<span class="verdict">— noise</span>`;
+  const row = document.createElement("div");
+  row.className = "trow"+(t.pass?" passrow":"");
+  row.innerHTML = `<span class="svc">${SVC[t.service]||"·"}</span><span class="top">#${title(t.topic)}</span><span class="txt">${esc(t.text)}</span>${verdict}`;
+  box.prepend(row);
+  while(box.children.length>14) box.removeChild(box.lastChild);
+  tick_sound(t.pass);
+}
+function dripTicker(){
+  const t = tickQueue.shift();
+  $("tickcount").textContent = tickQueue.length ? tickQueue.length+" queued" : "";
+  if(t) paintTick(t);
+  const delay = tickQueue.length>30 ? 350 : tickQueue.length>10 ? 700 : 1400;
+  setTimeout(dripTicker, delay);
+}
+
+/* ---------- wiring ---------- */
+function toggleMethod(){ $("method").classList.toggle("open"); }
+function connect(){
+  const es = new EventSource("/api/stream");
+  es.addEventListener("snapshot",(e)=>{
+    S = JSON.parse(e.data);
+    enqueueTicker(S.ticker||[]);
+    render();
+    if(location.hash.startsWith("#e-")){
+      const el = document.getElementById(location.hash.slice(1));
+      if(el){ el.scrollIntoView({behavior:"smooth"}); el.classList.add("flash"); location.hash=""; }
+    }
+  });
+  es.onerror = ()=>{ es.close(); setTimeout(connect, 4000); };
+}
+$("aslider").addEventListener("input", renderAlpha);
+paintSoundBtn();
+connect();
+dripTicker();
+setInterval(()=>{ if(S) renderEvents(); }, 30000); // refresh "ago" strings
+</script>
+</body>
+</html>

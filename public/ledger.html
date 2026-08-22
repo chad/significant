@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Ledger — Significant</title>
+<meta name="description" content="A permanent record of every story that ever rejected the null hypothesis. Mostly blank. That's the finding.">
+<style>
+:root{
+  --bg:#0a1016; --panel:#101822; --panel2:#15202c; --line:#1f2d3b; --line2:#2a3b4c;
+  --ink:#dfe7ee; --mut:#8299ad; --dim:#5a7084; --faint:#3d5165;
+  --teal:#2fc2ad; --teal2:#5bcec4; --gold:#f5b946;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+a{color:var(--teal2);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+header{padding:44px 0 8px;text-align:center}
+h1{font-family:var(--mono);font-size:28px;margin:0;font-weight:600}
+h1 a{color:var(--ink)} h1 .p{color:var(--teal)}
+.sub{color:var(--mut);margin-top:8px}
+.totals{display:flex;justify-content:center;gap:14px;margin:24px 0;flex-wrap:wrap;font-family:var(--mono)}
+.tot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 20px;text-align:center;min-width:130px}
+.tot .n{font-size:22px;font-weight:600} .tot .n.hot{color:var(--teal)}
+.tot .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.sect{margin:36px 0 0}
+.secthead{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:16px;display:flex;justify-content:space-between}
+.secthead .note{text-transform:none;letter-spacing:0;font-size:11px;color:var(--faint)}
+/* calendar */
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px}
+.day{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--mono);text-align:center}
+.day .d{font-size:10px;color:var(--faint)}
+.day .c{font-size:20px;font-weight:700;color:var(--faint);margin-top:2px}
+.day.lit{border-color:var(--teal)} .day.lit .c{color:var(--teal)}
+.day .sub2{font-size:9px;color:var(--faint);margin-top:2px}
+/* notes */
+.note-line{font-family:var(--mono);font-size:12.5px;color:var(--mut);font-style:italic;padding:8px 0;border-bottom:1px solid var(--line)}
+.note-line b{color:var(--teal2);font-style:normal;margin-right:8px}
+/* events */
+.ev{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:10px}
+.ev .top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-bottom:4px}
+.ev .badge{border:1px solid var(--line2);border-radius:99px;padding:1px 8px;color:var(--teal2);text-transform:uppercase;letter-spacing:1px}
+.ev h3{margin:0;font-size:16px;font-weight:600}
+.ev .dek{color:var(--mut);font-size:13px;margin-top:3px}
+.ev .stat{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+.ev .stat .sig{color:var(--gold)}
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;text-align:center;padding:40px;color:var(--mut)}
+.empty h2{font-family:var(--mono);color:var(--ink);font-weight:600;margin:0 0 8px}
+footer{margin:56px 0 40px;text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1><a href="/">Significant<span class="p">.</span></a> — The Ledger</h1>
+  <p class="sub">A permanent record of every story that ever rejected the null hypothesis.<br>The blank days are the finding.</p>
+</header>
+<div class="wrap">
+  <div class="totals" id="totals"></div>
+  <div class="sect"><div class="secthead"><span>The calendar</span><span class="note">events per day since launch</span></div><div class="cal" id="cal"></div></div>
+  <div class="sect"><div class="secthead"><span>The statistician's notes</span><span class="note">one line per finished day</span></div><div id="notes"></div></div>
+  <div class="sect"><div class="secthead"><span>Everything that ever passed</span><span class="note" id="evcount"></span></div><div id="events"></div></div>
+</div>
+<footer>← <a href="/">back to the feed</a> · <a href="/feed.xml">rss</a></footer>
+<script>
+"use strict";
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtP=(p)=>p<1e-4?p.toExponential(1).replace("e-","e−"):p.toFixed(4).replace(/^0/,"");
+const fmtN=(v)=>v.toLocaleString("en-US");
+fetch("/api/ledger").then(r=>r.json()).then(L=>{
+  const daysLive = Math.max(1, Math.ceil((Date.now()-L.launchedAt)/86400e3));
+  $("totals").innerHTML = `
+    <div class="tot"><div class="n">${fmtN(L.totals.postsAnalyzed)}</div><div class="l">posts analyzed</div></div>
+    <div class="tot"><div class="n">${fmtN(L.totals.termsTested)}</div><div class="l">hypotheses tested</div></div>
+    <div class="tot"><div class="n hot">${fmtN(L.totals.passedEver)}</div><div class="l">ever passed</div></div>
+    <div class="tot"><div class="n">${daysLive}</div><div class="l">days watching</div></div>`;
+
+  // calendar: all days from launch to today
+  const byDay = {};
+  for(const d of L.days) byDay[d.day]=d;
+  byDay[L.today.day]=L.today;
+  const evByDay = {};
+  for(const e of L.events){ const k=new Date(e.firstSeen).toISOString().slice(0,10); evByDay[k]=(evByDay[k]||0)+1; }
+  let cells="";
+  const start = new Date(L.launchedAt); start.setUTCHours(0,0,0,0);
+  for(let t=start.getTime(); t<=Date.now(); t+=86400e3){
+    const k=new Date(t).toISOString().slice(0,10);
+    const n=evByDay[k]||((byDay[k]&&byDay[k].passed)||0);
+    const posts=(byDay[k]&&byDay[k].posts)||0;
+    cells+=`<div class="day ${n?"lit":""}"><div class="d">${k.slice(5)}</div><div class="c">${n}</div><div class="sub2">${posts?fmtN(posts)+" posts":"&nbsp;"}</div></div>`;
+  }
+  $("cal").innerHTML = cells;
+
+  const notes = L.days.filter(d=>d.note).slice(-30).reverse();
+  $("notes").innerHTML = notes.length
+    ? notes.map(d=>`<div class="note-line"><b>${d.day}</b>“${esc(d.note)}”</div>`).join("")
+    : `<div class="note-line" style="border:none;color:var(--faint)">the statistician files a note at the end of each UTC day — none finished yet</div>`;
+
+  $("evcount").textContent = L.events.length ? L.events.length + " events" : "";
+  $("events").innerHTML = L.events.length ? L.events.map(e=>`
+    <div class="ev">
+      <div class="top"><span>${e.crossTopics?`<span class="badge" style="color:var(--gold)">✦ cross-domain</span> `:""}${e.type==="velocity"?`<span class="badge" style="color:#c792ea">⚡ velocity</span> `:""}<span class="badge">#${e.topic.replace(/-/g," ")}</span></span><span>${new Date(e.firstSeen).toUTCString().replace(":00 GMT"," UTC")}</span></div>
+      <h3>${esc(e.headline||e.display||e.term)}</h3>
+      ${e.dek?`<div class="dek">${esc(e.dek)}</div>`:""}
+      <div class="stat">${e.type==="velocity"?`${e.x} posts/hr`:`${e.x}/${e.n} posts`} · z=${e.z} · p=<span class="sig">${fmtP(e.p)}</span> · <a href="/e/${e.id}">permalink</a></div>
+    </div>`).join("")
+    : `<div class="empty"><h2>Nothing yet.</h2>The gate has rejected everything so far. This page fills up only when the world genuinely does something.</div>`;
+});
+</script>
+</body>
+</html>
