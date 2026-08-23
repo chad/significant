@@ -239,7 +239,7 @@ footer a{color:var(--dim)}
     <p>Every cycle tests thousands of terms across all topics. Testing many hypotheses and reporting the best one is how junk science — and every trending-topics algorithm — works. So the gate is corrected for <em>every term we looked at</em>:</p>
     <div class="formula">pass  ⇔  p &lt; α / m,   α = 0.01,   m = all terms tested this cycle</div>
     <h4>3¼. Plumbing filters</h4>
-    <p>Link fragments are stripped before tokenizing (a URL is not a word), and a burst whose posts ≥70% link to the <em>same domain</em> is rejected as <strong>aggregator echo</strong> — forty bots mirroring Hacker News is one source, not a discussion. Each burst also gets a deterministic <strong>story-coherence</strong> score: the fraction of its posts sharing a second term. A real story travels with companions; an umbrella word ("Apple" over unrelated gadget posts) doesn't. Below 50%, the event is labeled <em>diffuse</em> and its headline is required to say "mentions are elevated" rather than pretending the posts tell one story.</p>
+    <p>Link fragments are stripped before tokenizing (a URL is not a word). A burst whose posts ≥70% link to the <em>same domain</em> is rejected as <strong>aggregator echo</strong> — forty bots mirroring Hacker News is one source, not a discussion. A burst where one account wrote &gt;50% of the posts is rejected as a <strong>curator flood</strong>, with the account named in the noise floor. And every burst must pass a deterministic <strong>story-coherence gate</strong>: at least half its posts must share a second, companion term. A real story travels with companions; an umbrella word ("firms", "Hidden") over unrelated posts doesn't — those go to the noise floor with their coherence score, not into the feed.</p>
     <h4>3½. Velocity anomalies</h4>
     <p>Separately from term bursts, each topic's <em>posting rate</em> is tested: posts in the last hour vs. a Poisson expectation from that feed's own same-UTC-hour history (diurnal-corrected, ≥48 h of history required). These tests count toward <code>m</code> and face the same corrected gate — they catch "something is happening" before we know what.</p>
     <h4>4. Structural gates</h4>
@@ -330,7 +330,6 @@ function markText(text, terms){
 function renderEvents(){
   const active = S.events.filter(e=>e.active);
   const stories = active.filter(e=>!e.diffuse);
-  const diffuse = active.filter(e=>e.diffuse);
   const recent = S.events.filter(e=>!e.active && !e.diffuse);
   $("evnote").textContent = stories.length ? `${stories.length} stor${stories.length>1?"ies":"y"} above threshold` : "";
   let html = "";
@@ -343,10 +342,6 @@ function renderEvents(){
     </div>`;
   }
   for(const ev of stories) html += card(ev,false);
-  if(diffuse.length){
-    html += `<div class="secthead" style="margin-top:28px"><span>Statistically elevated · editorially empty</span><span class="note">real anomalies, but the posts don't tell one story</span></div>`;
-    html += diffuse.map(ev=>`<div class="pitem"><span class="fake" style="color:var(--mut);border-color:var(--line2)">◌ DIFFUSE</span><b>${esc(ev.lead.display||ev.lead.term)}</b><span>#${title(ev.topic)}</span><span>${ev.lead.x}/${ev.lead.n} vs ${(ev.lead.p0*ev.lead.n).toFixed(1)}</span><span>p=${fmtP(ev.lead.p)}</span><span>coherence ${Math.round((ev.coherence||0)*100)}%${ev.cohTerm?` · largest thread: “${esc(ev.cohTerm)}”`:""}</span></div>`).join("");
-  }
   if(recent.length){
     html += `<div class="secthead" style="margin-top:28px"><span>Recently significant</span><span class="note">passed the gate in the last 24h, since fallen below</span></div>`;
     for(const ev of recent.slice(0,6)) html += card(ev,true);
