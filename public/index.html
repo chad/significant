@@ -245,7 +245,7 @@ footer a{color:var(--dim)}
     <h4>4. Structural gates</h4>
     <p>A term must also appear in ≥ 4 posts from ≥ 3 distinct authors. One loud account is not news. Topics without ≥ 30 baseline posts spanning ≥ 3 h are marked <em>calibrating</em> and not tested at all.</p>
     <h4>5. What the AI does and doesn't do</h4>
-    <p>Claude writes the one-line neutral headline for events <em>after</em> they pass the gate (one batched call, cached forever). The statistics contain no AI. If no key is set, deterministic template headlines are used — the feed is identical.</p>
+    <p>Claude writes the one-line neutral headline for events <em>after</em> they pass the gate (one batched call, cached forever). The statistics contain no AI. If no key is set, deterministic template headlines are used. The AI holds one extra power — a <strong>veto, never an admission</strong>: if the posts behind a statistically valid burst don't actually tell one story, the event is dropped and logged rather than dressed up with a hedge headline. AI can only ever remove things from this feed.</p>
     <h4>Honest limitations</h4>
     <ul>
       <li>Baselines deepen over days; a freshly-booted instance is under-calibrated and says so per topic.</li>
@@ -386,6 +386,7 @@ function card(ev, gone){
       <div class="spark">${sparkSVG(ev.spark)}<div class="sparklbl">${isVelo?"posts":"mentions"}/hr · last 48h</div></div>
     </div>
     ${corro}
+    ${(ev.continuations&&ev.continuations.length)?`<div class="corro" style="color:var(--mut)">↺ re-confirmed ${ev.continuations.length}× — latest via “${esc(ev.continuations[ev.continuations.length-1].term)}” ${ago(ev.continuations[ev.continuations.length-1].at)}</div>`:""}
     <div class="cardfoot">
       <span class="meta">event ${ev.id}</span>
       <span>
