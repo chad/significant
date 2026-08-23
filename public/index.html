@@ -86,6 +86,11 @@ h1 .p{color:var(--teal)}
 .badge.cross{color:var(--gold);border-color:#7a5c3a}
 .badge.velo{color:#c792ea;border-color:#5a4a6a}
 .badge.diffuse{color:#8299ad;border-color:#3d5165}
+.badge.early{color:#ffd76a;border-color:#8a6d2f;background:#1a1508}
+.wirerow{display:flex;gap:12px;align-items:baseline;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;color:var(--dim)}
+.wirerow b{color:var(--mut);font-weight:600}
+.wirerow .wp{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
+.wirerow .wl{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:auto;white-space:nowrap}
 
 /* ---------- sections ---------- */
 .sect{margin:44px 0 0}
@@ -170,7 +175,7 @@ footer a{color:var(--dim)}
 
 <header class="wrap">
   <h1>Significant<span class="p">.</span></h1>
-  <p class="tagline">The news feed with a <b>p-value</b>. Every story must reject the null hypothesis.<br>Live Mastodon + Bluesky + RSS · Bonferroni-corrected · <button class="mbtn" onclick="toggleMethod()">methodology</button></p>
+  <p class="tagline">The news feed with a <b>p-value</b>. Every story must reject the null hypothesis — and we tell you which ones the press hasn't covered yet.<br>Live Mastodon + Bluesky + RSS · Bonferroni-corrected · press-subtracted · <button class="mbtn" onclick="toggleMethod()">methodology</button></p>
   <div class="modebar" id="modebar">connecting…</div>
   <div class="navrow"><a href="/ledger">the ledger</a><span class="sep">·</span><a href="/feed.xml">rss</a><span class="sep">·</span><button id="sndbtn" onclick="toggleSound()">🔇 sound off</button></div>
   <div class="dailynote" id="dailynote"></div>
@@ -221,7 +226,7 @@ footer a{color:var(--dim)}
   </div>
 
   <div class="sect">
-    <div class="secthead"><span>Instruments</span><span class="note">one gate, fifteen live topic feeds</span></div>
+    <div class="secthead"><span>Instruments</span><span class="note">one gate, twenty live topic feeds</span></div>
     <div class="topics" id="topics"></div>
   </div>
 </div>
@@ -229,7 +234,7 @@ footer a{color:var(--dim)}
 <div id="method" onclick="if(event.target===this)toggleMethod()">
   <div class="mpanel">
     <h2>Methodology</h2>
-    <p>Significant watches 15 public topic feeds on the open social web (Mastodon + Bluesky + RSS, via the <a href="https://developers.surf.social" target="_blank">Surf API</a>) and admits a story to the feed only when the discussion burst is statistically significant against that feed's own history.</p>
+    <p>Significant watches 20 public topic feeds on the open social web (Mastodon + Bluesky + RSS, via the <a href="https://developers.surf.social" target="_blank">Surf API</a>) and admits a story to the feed only when the discussion burst is statistically significant against that feed's own history.</p>
     <h4>1. Exposure is posts, not time</h4>
     <p>Feeds run at wildly different speeds (politics ≈ 4 posts/day, news ≈ 3,400/day). So each term's burst is measured as a <em>proportion of posts</em>: it appeared in <code>x</code> of the last <code>n</code> posts, against a baseline proportion <code>p₀</code> estimated from everything older (Laplace-smoothed). Both feeds face the same gate.</p>
     <h4>2. Exact binomial test</h4>
@@ -244,8 +249,10 @@ footer a{color:var(--dim)}
     <p>Separately from term bursts, each topic's <em>posting rate</em> is tested: posts in the last hour vs. a Poisson expectation from that feed's own same-UTC-hour history (diurnal-corrected, ≥48 h of history required). These tests count toward <code>m</code> and face the same corrected gate — they catch "something is happening" before we know what.</p>
     <h4>4. Structural gates</h4>
     <p>A term must also appear in ≥ 4 posts from ≥ 3 distinct authors. One loud account is not news. Topics without ≥ 30 baseline posts spanning ≥ 3 h are marked <em>calibrating</em> and not tested at all.</p>
-    <h4>5. What the AI does and doesn't do</h4>
-    <p>Claude writes the one-line neutral headline for events <em>after</em> they pass the gate (one batched call, cached forever). The statistics contain no AI. If no key is set, deterministic template headlines are used. The AI holds one extra power — a <strong>veto, never an admission</strong>: if the posts behind a statistically valid burst don't actually tell one story, the event is dropped and logged rather than dressed up with a hedge headline. AI can only ever remove things from this feed.</p>
+    <h4>5. Subtract the press — the residual is the product</h4>
+    <p>A burst that clears the gate but matches what the Associated Press already published is just the wire, amplified by mirror bots — detecting it proves the machinery works, and nothing more. So every passing event is checked against two keyless public indexes: <strong>Google News</strong> (≥3 items in the last 48h) and <strong>Hacker News</strong> (any story with ≥10 points in the last 48h). Matches become <em>confirmations</em>, filed in gray below. Non-matches are <strong>✦ EARLY precursors</strong> — the network knows something the press doesn't yet. Precursors are re-checked every 4 hours for 72 hours; when coverage appears, the card records exactly how early it was. If the indexes are unreachable, the event is honestly labeled <em>unknown</em> — no badge.</p>
+    <h4>6. What the AI does and doesn't do</h4>
+    <p>Claude writes the one-line neutral headline for events <em>after</em> they pass the gate (one batched call, cached forever). The statistics and the press checks contain no AI. If no key is set, deterministic template headlines are used. The AI holds one extra power — a <strong>veto, never an admission</strong>: if the posts behind a statistically valid burst don't actually tell one story, the event is dropped and logged rather than dressed up with a hedge headline. AI can only ever remove things from this feed.</p>
     <h4>Honest limitations</h4>
     <ul>
       <li>Baselines deepen over days; a freshly-booted instance is under-calibrated and says so per topic.</li>
@@ -292,7 +299,7 @@ function render(){
     `<span class="dot ${S.live.ai?"on":"off"}"></span>headlines: ${S.live.ai ? "claude" : "templates"}` +
     `<span class="dot on"></span>gate: bonferroni α=.01`;
   $("foot-mode").textContent = `mode: ${S.live.surf?"keyed":"keyless"} · ${S.live.ai?"claude headlines":"template headlines"}`;
-  $("wirerate").textContent = st.postsToday > 100 ? ` · ~${fmtN(st.postsToday)} posts today across 15 feeds` : "";
+  $("wirerate").textContent = st.postsToday > 100 ? ` · ~${fmtN(st.postsToday)} posts today across 20 feeds` : "";
 
   $("dailynote").innerHTML = (S.lastNote && S.lastNote.note)
     ? `<b>${S.lastNote.day}, statistically:</b> “${esc(S.lastNote.note)}”`
@@ -329,19 +336,26 @@ function markText(text, terms){
 
 function renderEvents(){
   const active = S.events.filter(e=>e.active);
-  const stories = active.filter(e=>!e.diffuse);
+  // the residual: precursors & unchecked events are the heroes; bursts that merely
+  // match existing press coverage are filed below as "the wire, measured"
+  const hero = active.filter(e=>!e.diffuse && (!e.coverage || e.coverage.status!=="confirmed"));
+  const wire = active.filter(e=>!e.diffuse && e.coverage && e.coverage.status==="confirmed");
   const recent = S.events.filter(e=>!e.active && !e.diffuse);
-  $("evnote").textContent = stories.length ? `${stories.length} stor${stories.length>1?"ies":"y"} above threshold` : "";
+  $("evnote").textContent = hero.length ? `${hero.length} stor${hero.length>1?"ies":"y"} above threshold` : "";
   let html = "";
-  if(!stories.length){
+  if(!hero.length){
     html += `<div class="empty">
       <h2>Nothing significant is happening right now.</h2>
-      <p>That's not a bug. ${fmtN(S.stats.postsToday)} posts crossed the wire today and no coherent story clears a Bonferroni-corrected significance gate. Whatever your other feeds are showing you is, statistically speaking, noise.</p>
+      <p>That's not a bug. ${fmtN(S.stats.postsToday)} posts crossed the wire today and no coherent story clears a Bonferroni-corrected significance gate${wire.length?" that the press hasn't already covered":""}. Whatever your other feeds are showing you is, statistically speaking, noise.</p>
       <div class="nullclock"><div class="t" id="nullclock">—</div><div class="l">the null hypothesis has held for</div></div>
       <div class="fine">gate: p &lt; ${fmtP(S.stats.alpha)} · check back — the world occasionally happens</div>
     </div>`;
   }
-  for(const ev of stories) html += card(ev,false);
+  for(const ev of hero) html += card(ev,false);
+  if(wire.length){
+    html += `<div class="secthead" style="margin-top:28px"><span>The wire, measured</span><span class="note">statistically real anomalies — but the press got there first, so they're not news to you</span></div>`;
+    for(const ev of wire) html += `<div class="wirerow"><span class="wp">p=${fmtP(ev.lead.p)}</span><span><b>#${title(ev.topic)}</b> · ${esc(ev.headline||ev.lead.display||ev.lead.term)}</span><span class="wl">${ev.coverage.gn>=3?ev.coverage.gn+" press hits":ev.coverage.hn+" HN stories"} · surfaced ${ago(ev.firstSeen)}</span></div>`;
+  }
   if(recent.length){
     html += `<div class="secthead" style="margin-top:28px"><span>Recently significant</span><span class="note">passed the gate in the last 24h, since fallen below</span></div>`;
     for(const ev of recent.slice(0,6)) html += card(ev,true);
@@ -363,7 +377,13 @@ function card(ev, gone){
   const chips = ev.cluster.map(c=>`<span class="chip">${esc(c.display||c.term)} <span class="cp">p=${fmtP(c.p)}</span></span>`).join("");
   const expect = (L.p0*L.n).toFixed(1);
   const isVelo = ev.type === "velocity";
-  const extraBadges = (ev.crossTopics ? `<span class="badge cross">✦ cross-domain ×${ev.crossTopics.length}</span> ` : "") + (isVelo ? `<span class="badge velo">⚡ velocity</span> ` : "") + (ev.diffuse ? `<span class="badge diffuse">◌ diffuse</span> ` : "");
+  const cov = ev.coverage;
+  const covBadge = cov && cov.status==="precursor"
+    ? (ev.pressLag!=null
+        ? `<span class="badge early">✦ EARLY — the press caught up ${(ev.pressLag/3600e3).toFixed(1)}h later</span> `
+        : `<span class="badge early">✦ EARLY — no mainstream press coverage · checked ${ago(cov.at)}</span> `)
+    : "";
+  const extraBadges = covBadge + (ev.crossTopics ? `<span class="badge cross">✦ cross-domain ×${ev.crossTopics.length}</span> ` : "") + (isVelo ? `<span class="badge velo">⚡ velocity</span> ` : "") + (ev.diffuse ? `<span class="badge diffuse">◌ diffuse</span> ` : "");
   const statsHtml = isVelo
     ? `<b>${L.x}</b> posts in the last hour · expected <b>${L.lambda}</b> (diurnal-corrected) · <b>${L.ratio}×</b> normal rate<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · Poisson test`
     : `in <b>${L.x}</b> of the last <b>${L.n}</b> posts · baseline expects <b>${expect}</b> (${L.xb}/${L.N} historical)<br>z = <b>${L.z}</b> · p = <span class="sig">${fmtP(L.p)}</span> &lt; α/m = ${fmtP(S.stats.alpha)} · <b>${L.authors}</b> distinct authors` + (ev.coherence!=null ? `<br>story coherence: <b>${Math.round((ev.coherence||0)*100)}%</b>${ev.cohTerm?` (shared thread: “${esc(ev.cohTerm)}”)`:""}${ev.diffuse?" — posts span multiple stories; headline kept honest":""}` : "");

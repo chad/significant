@@ -1,10 +1,14 @@
 # Significant — the news feed with a p-value
 
-A news feed where every story must **reject the null hypothesis**. Significant watches 15 live
-topic feeds on the open social web (Mastodon + Bluesky + RSS via the
+A news feed where every story must **reject the null hypothesis** — and where the hero slot is
+reserved for stories **the press hasn't covered yet**. Significant watches 20 live topic feeds on
+the open social web (Mastodon + Bluesky + RSS via the
 [Surf API](https://developers.surf.social)), tests every burst of discussion against that feed's
-own baseline with an exact binomial test, and **Bonferroni-corrects** across every hypothesis it
-looked at. Almost nothing passes. The empty state is the product.
+own baseline with an exact binomial test, **Bonferroni-corrects** across every hypothesis it
+looked at, and then **subtracts the press**: every survivor is checked against Google News and
+Hacker News. An anomaly the wire already covered is filed in gray as proof the machinery works.
+An anomaly with no coverage is a **✦ precursor** — the network knows something the press doesn't —
+and we timestamp exactly how early we were. Almost nothing passes. The empty state is the product.
 
 ```
 survival rate so far: ~0.03% of hypotheses tested
@@ -48,7 +52,13 @@ no signup. State persists to `data/state.json`, so baselines deepen the longer i
    before we know what." Same corrected gate; the tests count toward `m`.
 6. **Cross-domain confirmation.** The same term passing independently in 2+ topics gets a
    replication badge — the strongest evidence there is.
-7. **The noise floor.** The closest calls that still failed are displayed with the reason they
+7. **Press subtraction — the differentiator.** Each passing event is queried against two keyless
+   public indexes: Google News RSS (≥3 items in 48 h = covered) and HN Algolia (any story with
+   ≥10 points in 48 h = covered). Covered anomalies are *confirmations* — filed under "the wire,
+   measured". Uncovered ones are **precursors**, re-checked every 4 h for 72 h; when the press
+   catches up, the ledger records the head start (median head start is on `/ledger`). If the
+   indexes are unreachable the event is labeled *unknown* — we never claim "early" we can't verify.
+8. **The noise floor.** The closest calls that still failed are displayed with the reason they
    failed. These would all be "trending" somewhere else. The **α-slider** lets you lower the bar
    and watch what an uncorrected trending algorithm would have shown you instead.
 
@@ -81,5 +91,5 @@ Full write-up in the in-app **methodology** modal, including honest limitations.
 
 ## Launch copy
 
-- **HN:** *Show HN: A news feed where every story must reject the null hypothesis*
-- **PH tagline:** *The anti-doomscroll feed — Bonferroni-corrected news. Usually empty. That's the point.*
+- **HN:** *Show HN: A statistically honest news feed that tells you which stories the press hasn't covered yet*
+- **PH tagline:** *The anti-doomscroll feed — Bonferroni-corrected, press-subtracted news. Usually empty. When it's not, you're early.*

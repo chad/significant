@@ -58,6 +58,7 @@ footer{margin:56px 0 40px;text-align:center;font-family:var(--mono);font-size:11
 </header>
 <div class="wrap">
   <div class="totals" id="totals"></div>
+  <div class="totals" id="scoreboard"></div>
   <div class="sect"><div class="secthead"><span>The calendar</span><span class="note">events per day since launch</span></div><div class="cal" id="cal"></div></div>
   <div class="sect"><div class="secthead"><span>The statistician's notes</span><span class="note">one line per finished day</span></div><div id="notes"></div></div>
   <div class="sect"><div class="secthead"><span>Everything that ever passed</span><span class="note" id="evcount"></span></div><div id="events"></div></div>
@@ -76,6 +77,14 @@ fetch("/api/ledger").then(r=>r.json()).then(L=>{
     <div class="tot"><div class="n">${fmtN(L.totals.termsTested)}</div><div class="l">hypotheses tested</div></div>
     <div class="tot"><div class="n hot">${fmtN(L.totals.passedEver)}</div><div class="l">ever passed</div></div>
     <div class="tot"><div class="n">${daysLive}</div><div class="l">days watching</div></div>`;
+
+  if(L.scoreboard){
+    const sb=L.scoreboard;
+    $("scoreboard").innerHTML = `
+      <div class="tot"><div class="n" style="color:var(--gold)">${fmtN(sb.precursors)}</div><div class="l">✦ precursors (early)</div></div>
+      <div class="tot"><div class="n">${fmtN(sb.laterCovered)}</div><div class="l">later covered by press</div></div>
+      <div class="tot"><div class="n">${sb.medianLagH!=null?sb.medianLagH+"h":"—"}</div><div class="l">median head start</div></div>`;
+  }
 
   // calendar: all days from launch to today
   const byDay = {};
@@ -101,7 +110,7 @@ fetch("/api/ledger").then(r=>r.json()).then(L=>{
   $("evcount").textContent = L.events.length ? L.events.length + " events" : "";
   $("events").innerHTML = L.events.length ? L.events.map(e=>`
     <div class="ev">
-      <div class="top"><span>${e.crossTopics?`<span class="badge" style="color:var(--gold)">✦ cross-domain</span> `:""}${e.type==="velocity"?`<span class="badge" style="color:#c792ea">⚡ velocity</span> `:""}<span class="badge">#${e.topic.replace(/-/g," ")}</span></span><span>${new Date(e.firstSeen).toUTCString().replace(":00 GMT"," UTC")}</span></div>
+      <div class="top"><span>${e.coverage&&e.coverage.status==="precursor"?`<span class="badge" style="color:#ffd76a;border-color:#8a6d2f">✦ early${e.pressLag!=null?" — press +"+(e.pressLag/3600e3).toFixed(1)+"h":""}</span> `:""}${e.crossTopics?`<span class="badge" style="color:var(--gold)">✦ cross-domain</span> `:""}${e.type==="velocity"?`<span class="badge" style="color:#c792ea">⚡ velocity</span> `:""}<span class="badge">#${e.topic.replace(/-/g," ")}</span></span><span>${new Date(e.firstSeen).toUTCString().replace(":00 GMT"," UTC")}</span></div>
       <h3>${esc(e.headline||e.display||e.term)}</h3>
       ${e.dek?`<div class="dek">${esc(e.dek)}</div>`:""}
       <div class="stat">${e.type==="velocity"?`${e.x} posts/hr`:`${e.x}/${e.n} posts`} · z=${e.z} · p=<span class="sig">${fmtP(e.p)}</span> · <a href="/e/${e.id}">permalink</a></div>
